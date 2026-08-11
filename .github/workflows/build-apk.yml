@@ -26,7 +26,7 @@ jobs:
       - name: Generate Android project
         run: |
           mkdir -p /tmp/pixdrop_src
-          cp lib/main.dart /tmp/pixdrop_src/main.dart
+          cp main.dart /tmp/pixdrop_src/main.dart
           cp pubspec.yaml /tmp/pixdrop_src/pubspec.yaml
           flutter create --platforms=android --org uz.pixdrop --project-name pixdrop .
           cp /tmp/pixdrop_src/main.dart lib/main.dart
