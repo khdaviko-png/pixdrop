@@ -37,7 +37,7 @@ jobs:
           cp /tmp/pixdrop_src/main.dart lib/main.dart
           cp /tmp/pixdrop_src/pubspec.yaml pubspec.yaml
 
-      - name: Fix source and Android permissions
+      - name: Fix source, registration validation and Android permissions
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -45,6 +45,99 @@ jobs:
           p = Path('lib/main.dart')
           s = p.read_text(encoding='utf-8')
           s = s.replace('minHeight: 118,', 'constraints: const BoxConstraints(minHeight: 118),')
+
+          register_class = s.index('class _RegisterPageState extends State<RegisterPage>')
+          method_start = s.index('  Future<void> _register() async {', register_class)
+          method_end = s.index('\n\n  @override\n  Widget build', method_start)
+          new_method = r'''  Future<void> _register() async {
+            final name = _name.text.trim();
+            final rawPhone = _phone.text.trim();
+            final district = _district.text.trim();
+            final password = _password.text;
+
+            final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+            String phone = rawPhone;
+            if (digits.length == 9) {
+              phone = '+998$digits';
+            } else if (digits.length == 12 && digits.startsWith('998')) {
+              phone = '+$digits';
+            }
+
+            if (phone != rawPhone) {
+              _phone.text = phone;
+              _phone.selection = TextSelection.collapsed(offset: phone.length);
+            }
+
+            final errors = <String>[];
+
+            if (name.isEmpty) {
+              errors.add(tr('Ism va familiyangizni kiriting.', 'Введите имя и фамилию.'));
+            } else if (name.length < 2) {
+              errors.add(tr('Ism juda qisqa.', 'Имя слишком короткое.'));
+            }
+
+            if (phone.isEmpty) {
+              errors.add(tr('Telefon raqamini kiriting.', 'Введите номер телефона.'));
+            } else if (!_validPhone(phone)) {
+              errors.add(tr(
+                'Telefon raqami xato. Masalan: +998901234567',
+                'Неверный номер телефона. Пример: +998901234567',
+              ));
+            }
+
+            if (district.isEmpty) {
+              errors.add(tr('Tuman yoki shaharni kiriting.', 'Введите район или город.'));
+            } else if (district.length < 2) {
+              errors.add(tr('Tuman / shahar nomi juda qisqa.', 'Название района / города слишком короткое.'));
+            }
+
+            if (password.isEmpty) {
+              errors.add(tr('Parolni kiriting.', 'Введите пароль.'));
+            } else if (password.length < 4) {
+              errors.add(tr(
+                'Parol kamida 4 ta belgidan iborat bo‘lsin.',
+                'Пароль должен содержать минимум 4 символа.',
+              ));
+            }
+
+            if (errors.isNotEmpty) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 8),
+                  content: Text(
+                    '${tr('Quyidagi xatolarni to‘g‘rilang:', 'Исправьте следующие ошибки:')}\n• ${errors.join('\n• ')}',
+                  ),
+                ),
+              );
+              return;
+            }
+
+            setState(() => _loading = true);
+            final result = await AuthService.register(
+              name: name,
+              phone: phone,
+              district: district,
+              password: password,
+            );
+            if (!mounted) return;
+            setState(() => _loading = false);
+
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                duration: Duration(seconds: result.ok ? 4 : 8),
+                content: Text(
+                  result.ok
+                      ? result.message
+                      : '${tr('Ro‘yxatdan o‘tilmadi:', 'Регистрация не выполнена:')} ${result.message}',
+                ),
+              ),
+            );
+
+            if (result.ok) Navigator.pop(context);
+          }'''
+          s = s[:method_start] + new_method + s[method_end:]
           p.write_text(s, encoding='utf-8')
 
           manifest = Path('android/app/src/main/AndroidManifest.xml')
