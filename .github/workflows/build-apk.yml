@@ -37,15 +37,61 @@ jobs:
           cp /tmp/pixdrop_src/main.dart lib/main.dart
           cp /tmp/pixdrop_src/pubspec.yaml pubspec.yaml
 
-      - name: Fix source, validation, AI v2 UI and Android permissions
+      - name: Apply PixDrop app fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           p = Path('lib/main.dart')
           s = p.read_text(encoding='utf-8')
+
+          # Compatibility
           s = s.replace('minHeight: 118,', 'constraints: const BoxConstraints(minHeight: 118),')
 
+          # Telegram link support
+          if "package:url_launcher/url_launcher.dart" not in s:
+              s = s.replace(
+                  "import 'package:shared_preferences/shared_preferences.dart';",
+                  "import 'package:shared_preferences/shared_preferences.dart';\nimport 'package:url_launcher/url_launcher.dart';"
+              )
+
+          # Persisted UI settings + instant switching
+          old_main = """Future<void> main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(const PixDropApp());\n}"""
+          new_main = """Future<void> main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  final prefs = await SharedPreferences.getInstance();\n  isUzbek.value = prefs.getBool('ui_is_uzbek') ?? true;\n  final dark = prefs.getBool('ui_dark_mode') ?? true;\n  themeMode.value = dark ? ThemeMode.dark : ThemeMode.light;\n  runApp(const PixDropApp());\n}"""
+          s = s.replace(old_main, new_main)
+
+          # Save theme immediately
+          s = s.replace(
+              """onChanged: (v) {\n                      themeMode.value = v ? ThemeMode.dark : ThemeMode.light;\n                      setState(() {});\n                    },""",
+              """onChanged: (v) async {\n                      themeMode.value = v ? ThemeMode.dark : ThemeMode.light;\n                      final prefs = await SharedPreferences.getInstance();\n                      await prefs.setBool('ui_dark_mode', v);\n                      if (mounted) setState(() {});\n                    },"""
+          )
+
+          # Save language immediately
+          s = s.replace(
+              """onChanged: (v) {\n                      isUzbek.value = v;\n                      setState(() {});\n                    },""",
+              """onChanged: (v) async {\n                      isUzbek.value = v;\n                      final prefs = await SharedPreferences.getInstance();\n                      await prefs.setBool('ui_is_uzbek', v);\n                      if (mounted) setState(() {});\n                    },"""
+          )
+
+          # Brand text: Pix green, Drop follows theme text
+          s = s.replace(
+              "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.cyan)),",
+              "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.green)),"
+          )
+
+          # Theme-aware surfaces. These fixed dark surfaces made light-mode text disappear.
+          s = s.replace('color: const Color(0xFF071A24),', 'color: surfaceColor(context),')
+          s = s.replace('color: const Color(0xFF06212A),', 'color: surfaceColor(context),')
+          s = s.replace('color: const Color(0xFF081A25),', 'color: surfaceColor(context),')
+
+          # Catalog search field must also follow current theme.
+          s = s.replace('fillColor: const Color(0xFF071A24),', 'fillColor: surfaceColor(context),')
+
+          # Telegram support block: make username tappable and exact spelling.
+          old_tg = """const Text(\n                          '@Jahongir_444',\n                          style: TextStyle(\n                            color: AppColors.cyan,\n                            fontWeight: FontWeight.w900,\n                          ),\n                        ),"""
+          new_tg = """InkWell(\n                          borderRadius: BorderRadius.circular(10),\n                          onTap: () async {\n                            final uri = Uri.parse('https://t.me/jahongir_444');\n                            if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {\n                              if (!context.mounted) return;\n                              ScaffoldMessenger.of(context).showSnackBar(\n                                SnackBar(content: Text(tr('Telegram ochilmadi', 'Не удалось открыть Telegram'))),\n                              );\n                            }\n                          },\n                          child: const Padding(\n                            padding: EdgeInsets.symmetric(vertical: 6),\n                            child: Text(\n                              '@jahongir_444',\n                              style: TextStyle(\n                                color: AppColors.green,\n                                fontWeight: FontWeight.w900,\n                                decoration: TextDecoration.underline,\n                              ),\n                            ),\n                          ),\n                        ),"""
+          s = s.replace(old_tg, new_tg)
+
+          # Keep detailed registration validation from previous builds.
           register_class = s.index('class _RegisterPageState extends State<RegisterPage>')
           method_start = s.index('  Future<void> _register() async {', register_class)
           method_end = s.index('\n\n  @override\n  Widget build', method_start)
@@ -62,86 +108,52 @@ jobs:
             } else if (digits.length == 12 && digits.startsWith('998')) {
               phone = '+$digits';
             }
-
             if (phone != rawPhone) {
               _phone.text = phone;
               _phone.selection = TextSelection.collapsed(offset: phone.length);
             }
 
             final errors = <String>[];
-            if (name.isEmpty) {
-              errors.add(tr('Ism va familiyangizni kiriting.', 'Введите имя и фамилию.'));
-            } else if (name.length < 2) {
-              errors.add(tr('Ism juda qisqa.', 'Имя слишком короткое.'));
-            }
-            if (phone.isEmpty) {
-              errors.add(tr('Telefon raqamini kiriting.', 'Введите номер телефона.'));
-            } else if (!_validPhone(phone)) {
-              errors.add(tr('Telefon raqami xato. Masalan: +998901234567', 'Неверный номер телефона. Пример: +998901234567'));
-            }
-            if (district.isEmpty) {
-              errors.add(tr('Tuman yoki shaharni kiriting.', 'Введите район или город.'));
-            } else if (district.length < 2) {
-              errors.add(tr('Tuman / shahar nomi juda qisqa.', 'Название района / города слишком короткое.'));
-            }
-            if (password.isEmpty) {
-              errors.add(tr('Parolni kiriting.', 'Введите пароль.'));
-            } else if (password.length < 4) {
-              errors.add(tr('Parol kamida 4 ta belgidan iborat bo‘lsin.', 'Пароль должен содержать минимум 4 символа.'));
-            }
+            if (name.isEmpty) errors.add(tr('Ism va familiyangizni kiriting.', 'Введите имя и фамилию.'));
+            else if (name.length < 2) errors.add(tr('Ism juda qisqa.', 'Имя слишком короткое.'));
+            if (phone.isEmpty) errors.add(tr('Telefon raqamini kiriting.', 'Введите номер телефона.'));
+            else if (!_validPhone(phone)) errors.add(tr('Telefon raqami xato. Masalan: +998901234567', 'Неверный номер телефона. Пример: +998901234567'));
+            if (district.isEmpty) errors.add(tr('Tuman yoki shaharni kiriting.', 'Введите район или город.'));
+            else if (district.length < 2) errors.add(tr('Tuman / shahar nomi juda qisqa.', 'Название района / города слишком короткое.'));
+            if (password.isEmpty) errors.add(tr('Parolni kiriting.', 'Введите пароль.'));
+            else if (password.length < 4) errors.add(tr('Parol kamida 4 ta belgidan iborat bo‘lsin.', 'Пароль должен содержать минимум 4 символа.'));
 
             if (errors.isNotEmpty) {
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  duration: const Duration(seconds: 8),
-                  content: Text('${tr('Quyidagi xatolarni to‘g‘rilang:', 'Исправьте следующие ошибки:')}\n• ${errors.join('\n• ')}'),
-                ),
+                SnackBar(duration: const Duration(seconds: 8), content: Text('${tr('Quyidagi xatolarni to‘g‘rilang:', 'Исправьте следующие ошибки:')}\n• ${errors.join('\n• ')}')),
               );
               return;
             }
 
             setState(() => _loading = true);
-            final result = await AuthService.register(
-              name: name,
-              phone: phone,
-              district: district,
-              password: password,
-            );
+            final result = await AuthService.register(name: name, phone: phone, district: district, password: password);
             if (!mounted) return;
             setState(() => _loading = false);
-
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                duration: Duration(seconds: result.ok ? 4 : 8),
-                content: Text(result.ok ? result.message : '${tr('Ro‘yxatdan o‘tilmadi:', 'Регистрация не выполнена:')} ${result.message}'),
-              ),
+              SnackBar(duration: Duration(seconds: result.ok ? 4 : 8), content: Text(result.ok ? result.message : '${tr('Ro‘yxatdan o‘tilmadi:', 'Регистрация не выполнена:')} ${result.message}')),
             );
             if (result.ok) Navigator.pop(context);
           }'''
           s = s[:method_start] + new_method + s[method_end:]
 
+          # AI v2 scan UI from previous build.
           scan_class = s.index('class _ScanPageState extends State<ScanPage>')
           scan_start = s.index('  Future<void> _scanDirectly() async {', scan_class)
           scan_end = s.index('\n\n  @override\n  Widget build', scan_start)
           new_scan = r'''  Future<void> _scanDirectly() async {
-            final p = await ImagePicker().pickImage(
-              source: ImageSource.camera,
-              imageQuality: 92,
-            );
-
+            final p = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 92);
             if (p == null) {
               if (mounted && _img == null) Navigator.pop(context);
               return;
             }
-
-            setState(() {
-              _img = File(p.path);
-              _loading = true;
-              _res = null;
-            });
-
+            setState(() { _img = File(p.path); _loading = true; _res = null; });
             try {
               final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/predict'));
               req.headers.addAll(await AuthService.authHeaders());
@@ -149,80 +161,43 @@ jobs:
               req.files.add(await http.MultipartFile.fromPath('image', p.path));
               final streamed = await req.send().timeout(const Duration(seconds: 45));
               final body = await streamed.stream.bytesToString();
-
               Map<String, dynamic>? data;
-              try {
-                final decoded = json.decode(body);
-                if (decoded is Map) data = Map<String, dynamic>.from(decoded);
-              } catch (_) {}
-
+              try { final decoded = json.decode(body); if (decoded is Map) data = Map<String, dynamic>.from(decoded); } catch (_) {}
               if (!mounted) return;
-
               if (streamed.statusCode == 200 && data != null) {
                 if ((data['status'] ?? '').toString() == 'similar') {
                   final selected = await _chooseSimilar(data);
                   if (!mounted) return;
-                  if (selected != null && selected['_rescan'] == true) {
-                    setState(() => _loading = false);
-                    await _scanDirectly();
-                    return;
-                  }
+                  if (selected != null && selected['_rescan'] == true) { setState(() => _loading = false); await _scanDirectly(); return; }
                   if (selected != null) {
                     final picked = Map<String, dynamic>.from(selected);
-                    setState(() {
-                      _res = {
-                        'status': 'selected',
-                        'name': picked['name'],
-                        'price': picked['price'],
-                        'code': picked['code'],
-                        'score': picked['score'],
-                        'match': picked,
-                      };
-                      _loading = false;
-                    });
+                    setState(() { _res = {'status':'selected','name':picked['name'],'price':picked['price'],'code':picked['code'],'score':picked['score'],'match':picked}; _loading = false; });
                     await rememberProductSearch(picked);
                     return;
                   }
-                  setState(() => _loading = false);
-                  return;
+                  setState(() => _loading = false); return;
                 }
-
-                setState(() {
-                  _res = data;
-                  _loading = false;
-                });
+                setState(() { _res = data; _loading = false; });
                 await rememberProductSearch(Map<String, dynamic>.from(data));
                 return;
               }
-
               final message = data?['message']?.toString() ?? tr('Mahsulot topilmadi.', 'Товар не найден.');
               setState(() => _loading = false);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
             } on TimeoutException {
-              if (!mounted) return;
-              setState(() => _loading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(tr('AI javobi kechikdi. Qayta urinib ko‘ring.', 'AI отвечает слишком долго. Попробуйте снова.'))),
-              );
+              if (!mounted) return; setState(() => _loading = false);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('AI javobi kechikdi. Qayta urinib ko‘ring.', 'AI отвечает слишком долго. Попробуйте снова.'))));
             } catch (_) {
-              if (!mounted) return;
-              setState(() => _loading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(tr('Server bilan aloqa yo‘q.', 'Нет связи с сервером.'))),
-              );
+              if (!mounted) return; setState(() => _loading = false);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Server bilan aloqa yo‘q.', 'Нет связи с сервером.'))));
             }
           }
 
           Future<Map<String, dynamic>?> _chooseSimilar(Map<String, dynamic> data) async {
             final raw = data['suggestions'];
-            final items = raw is List
-                ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-                : <Map<String, dynamic>>[];
+            final items = raw is List ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
             if (items.isEmpty) return null;
-
-            final detected = data['detected'] is Map
-                ? Map<String, dynamic>.from(data['detected'] as Map)
-                : <String, dynamic>{};
+            final detected = data['detected'] is Map ? Map<String, dynamic>.from(data['detected'] as Map) : <String, dynamic>{};
             final amps = detected['amps'] is List ? (detected['amps'] as List).join(', ') : '';
             final info = <String>[
               if ((detected['brand'] ?? '').toString().isNotEmpty) (detected['brand'] ?? '').toString().toUpperCase(),
@@ -230,75 +205,30 @@ jobs:
               if ((detected['curve'] ?? '').toString().isNotEmpty) (detected['curve'] ?? '').toString(),
               if ((detected['poles'] ?? '').toString().isNotEmpty) (detected['poles'] ?? '').toString(),
             ].join(' • ');
-
             return showModalBottomSheet<Map<String, dynamic>>(
-              context: context,
-              isDismissible: false,
-              enableDrag: false,
-              isScrollControlled: true,
+              context: context, isDismissible: false, enableDrag: false, isScrollControlled: true,
               backgroundColor: surfaceColor(context),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
               builder: (sheetContext) => SafeArea(
                 child: Container(
                   constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .78),
-                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tr('Aniq topilmadi — o‘xshash mahsulotni tanlang', 'Точного совпадения нет — выберите похожий товар'),
-                        style: TextStyle(color: primaryText(sheetContext), fontSize: 20, fontWeight: FontWeight.w900),
-                      ),
-                      if (info.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text('${tr('AI aniqladi', 'AI определил')}: $info', style: const TextStyle(color: AppColors.green, fontWeight: FontWeight.w700)),
-                      ],
-                      const SizedBox(height: 8),
-                      Text(
-                        tr('Narx faqat sizning omboringizdan olinadi.', 'Цена берётся только из вашего склада.'),
-                        style: TextStyle(color: mutedText(sheetContext)),
-                      ),
-                      const SizedBox(height: 14),
-                      Flexible(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) {
-                            final item = items[i];
-                            final score = double.tryParse('${item['score'] ?? 0}') ?? 0;
-                            return Material(
-                              color: Colors.transparent,
-                              child: ListTile(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                                tileColor: AppColors.cyan.withOpacity(.06),
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColors.cyan.withOpacity(.12),
-                                  child: Text('${i + 1}', style: const TextStyle(color: AppColors.cyan, fontWeight: FontWeight.w900)),
-                                ),
-                                title: Text((item['name'] ?? '—').toString(), style: TextStyle(color: primaryText(sheetContext), fontWeight: FontWeight.w800)),
-                                subtitle: Text('${item['price'] ?? '0'} UZS • ${score.toStringAsFixed(0)}%', style: const TextStyle(color: AppColors.green, fontWeight: FontWeight.w700)),
-                                trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.cyan),
-                                onTap: () => Navigator.pop(sheetContext, item),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, {'_rescan': true}),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: Text(tr('Qayta skan qilish', 'Сканировать снова')),
-                        ),
-                      ),
-                    ],
-                  ),
+                  padding: const EdgeInsets.fromLTRB(18,20,18,12),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(tr('Aniq topilmadi — o‘xshash mahsulotni tanlang', 'Точного совпадения нет — выберите похожий товар'), style: TextStyle(color: primaryText(sheetContext), fontSize: 20, fontWeight: FontWeight.w900)),
+                    if (info.isNotEmpty) ...[const SizedBox(height:8), Text('${tr('AI aniqladi', 'AI определил')}: $info', style: const TextStyle(color: AppColors.green, fontWeight: FontWeight.w700))],
+                    const SizedBox(height:8), Text(tr('Narx faqat sizning omboringizdan olinadi.', 'Цена берётся только из вашего склада.'), style: TextStyle(color: mutedText(sheetContext))),
+                    const SizedBox(height:14),
+                    Flexible(child: ListView.separated(shrinkWrap:true, itemCount:items.length, separatorBuilder:(_,__)=>const SizedBox(height:10), itemBuilder:(_,i){
+                      final item=items[i]; final score=double.tryParse('${item['score'] ?? 0}') ?? 0;
+                      return Material(color:Colors.transparent, child:ListTile(
+                        shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)), tileColor:Theme.of(sheetContext).colorScheme.surfaceContainerHighest.withOpacity(.35),
+                        leading:CircleAvatar(backgroundColor:AppColors.green.withOpacity(.12), child:Text('${i+1}', style:const TextStyle(color:AppColors.green,fontWeight:FontWeight.w900))),
+                        title:Text((item['name'] ?? '—').toString(), style:TextStyle(color:primaryText(sheetContext),fontWeight:FontWeight.w800)),
+                        subtitle:Text('${item['price'] ?? '0'} UZS • ${score.toStringAsFixed(0)}%', style:const TextStyle(color:AppColors.green,fontWeight:FontWeight.w700)),
+                        trailing:const Icon(Icons.chevron_right_rounded,color:AppColors.green), onTap:()=>Navigator.pop(sheetContext,item)));
+                    })),
+                    const SizedBox(height:10), SizedBox(width:double.infinity, child:TextButton.icon(onPressed:()=>Navigator.pop(sheetContext,{'_rescan':true}), icon:const Icon(Icons.refresh_rounded), label:Text(tr('Qayta skan qilish','Сканировать снова')))),
+                  ]),
                 ),
               ),
             );
@@ -308,10 +238,10 @@ jobs:
 
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           m = manifest.read_text(encoding='utf-8')
-          permission = '<uses-permission android:name="android.permission.INTERNET" />'
           if 'android.permission.INTERNET' not in m:
-              m = m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-                            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    ' + permission)
+              m = m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
+          # Correct display name under phone icon
+          m = m.replace('android:label="pixdrop"', 'android:label="PixDrop"')
           manifest.write_text(m, encoding='utf-8')
           PY
 
