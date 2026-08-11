@@ -37,14 +37,23 @@ jobs:
           cp /tmp/pixdrop_src/main.dart lib/main.dart
           cp /tmp/pixdrop_src/pubspec.yaml pubspec.yaml
 
-      - name: Fix source compatibility
+      - name: Fix source and Android permissions
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path('lib/main.dart')
           s = p.read_text(encoding='utf-8')
           s = s.replace('minHeight: 118,', 'constraints: const BoxConstraints(minHeight: 118),')
           p.write_text(s, encoding='utf-8')
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          m = manifest.read_text(encoding='utf-8')
+          permission = '<uses-permission android:name="android.permission.INTERNET" />'
+          if 'android.permission.INTERNET' not in m:
+              m = m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    ' + permission)
+          manifest.write_text(m, encoding='utf-8')
           PY
 
       - name: Get dependencies
