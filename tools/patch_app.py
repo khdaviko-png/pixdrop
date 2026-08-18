@@ -55,10 +55,10 @@ new = """onChanged: (v) async {
                     },"""
 s = s.replace(old, new)
 
-# Pix -> green.
+# Pix uses the same cyan shade as the removed home-section heading.
 s = s.replace(
     "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.cyan)),",
-    "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.green)),",
+    "TextSpan(text: 'Pix', style: TextStyle(color: Color(0xFF16D9C4))),",
 )
 
 # Fixed dark surfaces -> theme-aware surfaces.
@@ -143,7 +143,10 @@ m = m.replace('android:label="pixdrop"', 'android:label="PixDrop"')
 manifest.write_text(m, encoding='utf-8')
 
 checks = {
-    'green Pix': "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.green))" in s,
+    'cyan Pix': "color: Color(0xFF16D9C4)" in s,
+    'dark home logo': "assetPath: 'assets/home_logo_dark.png'" in s,
+    'removed popular-products heading': 'Eng ko‘p qidirilgan mahsulotlar' not in s,
+    'removed all-products link': "tr('Barchasi', 'Все')" not in s,
     'Telegram import': "package:url_launcher/url_launcher.dart" in s,
     'Telegram link': "https://t.me/jahongir_444" in s,
     'Telegram username': "@jahongir_444" in s,

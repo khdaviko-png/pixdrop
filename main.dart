@@ -197,7 +197,13 @@ BoxDecoration cardDecoration(BuildContext context, {bool glow = false}) {
 class BrandMark extends StatelessWidget {
   final double logoHeight;
   final bool centered;
-  const BrandMark({super.key, this.logoHeight = 72, this.centered = true});
+  final String assetPath;
+  const BrandMark({
+    super.key,
+    this.logoHeight = 72,
+    this.centered = true,
+    this.assetPath = 'assets/logo.png',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +213,7 @@ class BrandMark extends StatelessWidget {
           centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         Image.asset(
-          'assets/logo.png',
+          assetPath,
           height: logoHeight,
           errorBuilder: (_, __, ___) => Container(
             width: logoHeight,
@@ -232,7 +238,10 @@ class BrandMark extends StatelessWidget {
               color: primaryText(context),
             ),
             children: const [
-              TextSpan(text: 'Pix', style: TextStyle(color: AppColors.cyan)),
+              TextSpan(
+                text: 'Pix',
+                style: TextStyle(color: Color(0xFF16D9C4)),
+              ),
               TextSpan(text: 'Drop'),
             ],
           ),
@@ -1254,40 +1263,12 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const SizedBox(height: 6),
                     const Center(
-                      child: BrandMark(logoHeight: 150),
+                      child: BrandMark(
+                        logoHeight: 150,
+                        assetPath: 'assets/home_logo_dark.png',
+                      ),
                     ),
                     const SizedBox(height: 34),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tr('Eng ko‘p qidirilgan mahsulotlar',
-                                'Самые популярные товары'),
-                            style: const TextStyle(
-                              color: Color(0xFF16D9C4),
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => _openPage(
-                            const ProductsPage(),
-                            refreshAfter: true,
-                          ),
-                          icon: const Icon(Icons.chevron_right_rounded,
-                              color: Color(0xFF16D9C4)),
-                          label: Text(
-                            tr('Barchasi', 'Все'),
-                            style: TextStyle(
-                              color: mutedText(context),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     if (_loadingProducts)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 70),
