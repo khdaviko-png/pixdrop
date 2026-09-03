@@ -1265,7 +1265,7 @@ class _HomePageState extends State<HomePage> {
                     const Center(
                       child: BrandMark(
                         logoHeight: 150,
-                        assetPath: 'assets/home_logo_dark.png',
+                        assetPath: 'assets/logo.png',
                       ),
                     ),
                     const SizedBox(height: 34),
