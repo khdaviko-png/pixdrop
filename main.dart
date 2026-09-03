@@ -1598,7 +1598,12 @@ class _PixBottomMenu extends StatelessWidget {
             label: tr('Katalog', 'Каталог'),
             onTap: onCatalog,
           ),
-          _CenterScanButton(onTap: onScan),
+          _BottomMenuItem(
+            icon: Icons.center_focus_strong_outlined,
+            label: tr('Skaner', 'Сканер'),
+            onTap: onScan,
+            active: true,
+          ),
           _BottomMenuItem(
             icon: Icons.add_rounded,
             label: tr('Yuk qo‘shish', 'Добавить'),
@@ -1621,12 +1626,14 @@ class _BottomMenuItem extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool filled;
+  final bool active;
 
   const _BottomMenuItem({
     required this.icon,
     required this.label,
     required this.onTap,
     this.filled = false,
+    this.active = false,
   });
 
   @override
@@ -1653,7 +1660,11 @@ class _BottomMenuItem extends StatelessWidget {
                     : null,
                 child: Icon(
                   icon,
-                  color: filled ? Colors.white : const Color(0xFF76A9B4),
+                  color: filled
+                      ? Colors.white
+                      : active
+                          ? const Color(0xFF00E6D2)
+                          : const Color(0xFF76A9B4),
                   size: filled ? 29 : 30,
                 ),
               ),
@@ -1663,65 +1674,13 @@ class _BottomMenuItem extends StatelessWidget {
                 child: Text(
                   label,
                   maxLines: 1,
-                  style: const TextStyle(
-                    color: Color(0xFF76A9B4),
+                  style: TextStyle(
+                    color: active
+                        ? const Color(0xFF00E6D2)
+                        : const Color(0xFF76A9B4),
                     fontSize: 11,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w400,
                   ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CenterScanButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _CenterScanButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Transform.translate(
-        offset: const Offset(0, -18),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF06202A),
-                  border: Border.all(
-                    color: const Color(0xFF00E6D2),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00E6D2).withOpacity(.14),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.center_focus_strong_outlined,
-                  color: Color(0xFF00E6D2),
-                  size: 43,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                tr('Skaner', 'Сканер'),
-                style: const TextStyle(
-                  color: Color(0xFF00E6D2),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
