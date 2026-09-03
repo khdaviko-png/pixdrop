@@ -1608,7 +1608,7 @@ class _PixBottomMenu extends StatelessWidget {
             icon: Icons.add_rounded,
             label: tr('Yuk qo‘shish', 'Добавить'),
             onTap: onAdd,
-            filled: true,
+            iconAccent: true,
           ),
           _BottomMenuItem(
             icon: Icons.view_in_ar_outlined,
@@ -1627,6 +1627,7 @@ class _BottomMenuItem extends StatelessWidget {
   final VoidCallback onTap;
   final bool filled;
   final bool active;
+  final bool iconAccent;
 
   const _BottomMenuItem({
     required this.icon,
@@ -1634,6 +1635,7 @@ class _BottomMenuItem extends StatelessWidget {
     required this.onTap,
     this.filled = false,
     this.active = false,
+    this.iconAccent = false,
   });
 
   @override
@@ -1648,24 +1650,30 @@ class _BottomMenuItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 42,
-                height: 42,
-                decoration: filled
-                    ? const BoxDecoration(
+                width: active ? 54 : 42,
+                height: active ? 54 : 42,
+                decoration: active
+                    ? BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF17E2D2), Color(0xFF00B9A7)],
+                        color: const Color(0xFF00E6D2).withOpacity(.10),
+                        border: Border.all(
+                          color: const Color(0xFF00E6D2),
+                          width: 1.5,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00E6D2).withOpacity(.16),
+                            blurRadius: 14,
+                          ),
+                        ],
                       )
                     : null,
                 child: Icon(
                   icon,
-                  color: filled
-                      ? Colors.white
-                      : active
-                          ? const Color(0xFF00E6D2)
-                          : const Color(0xFF76A9B4),
-                  size: filled ? 29 : 30,
+                  color: active || iconAccent
+                      ? const Color(0xFF00E6D2)
+                      : const Color(0xFF76A9B4),
+                  size: active ? 36 : 30,
                 ),
               ),
               const SizedBox(height: 4),
