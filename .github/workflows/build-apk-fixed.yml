@@ -134,7 +134,7 @@ jobs:
 
           # Exact Telegram username -> open external Telegram app/browser.
           old_tg = """const Text(
-                          '@Jahongir_444',
+                          '@Parvizgaybullayev',
                           style: TextStyle(
                             color: AppColors.cyan,
                             fontWeight: FontWeight.w900,
@@ -143,7 +143,7 @@ jobs:
           new_tg = """InkWell(
                           borderRadius: BorderRadius.circular(10),
                           onTap: () async {
-                            final uri = Uri.parse('https://t.me/jahongir_444');
+                            final uri = Uri.parse('https://t.me/Parvizgaybullayev');
                             final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
                             if (!opened && context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -154,7 +154,7 @@ jobs:
                           child: const Padding(
                             padding: EdgeInsets.symmetric(vertical: 6),
                             child: Text(
-                              '@jahongir_444',
+                              '@Parvizgaybullayev',
                               style: TextStyle(
                                 color: AppColors.green,
                                 fontWeight: FontWeight.w900,
@@ -183,8 +183,8 @@ jobs:
           checks = {
               'green Pix': "TextSpan(text: 'Pix', style: TextStyle(color: AppColors.green))" in s,
               'Telegram package': "package:url_launcher/url_launcher.dart" in s,
-              'Telegram link': "https://t.me/jahongir_444" in s,
-              'lowercase Telegram username': "@jahongir_444" in s,
+              'Telegram link': "https://t.me/Parvizgaybullayev" in s,
+              'Telegram username': "@Parvizgaybullayev" in s,
               'saved Uzbek/Russian': "prefs.setBool('ui_is_uzbek', v)" in s,
               'saved dark/light': "prefs.setBool('ui_dark_mode', v)" in s,
               'theme restored at startup': "prefs.getBool('ui_dark_mode')" in s and "prefs.getBool('ui_is_uzbek')" in s,
