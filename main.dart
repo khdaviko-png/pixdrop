@@ -3218,7 +3218,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          '@Jahongir_444',
+                          '@Parvizgaybullayev',
                           style: TextStyle(
                             color: AppColors.cyan,
                             fontWeight: FontWeight.w900,
