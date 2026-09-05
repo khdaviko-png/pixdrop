@@ -98,7 +98,7 @@ s = s.replace(
 
 # Telegram username is tappable.
 old_tg = """const Text(
-                          '@Jahongir_444',
+                          '@Parvizgaybullayev',
                           style: TextStyle(
                             color: AppColors.cyan,
                             fontWeight: FontWeight.w900,
@@ -107,7 +107,7 @@ old_tg = """const Text(
 new_tg = """InkWell(
                           borderRadius: BorderRadius.circular(10),
                           onTap: () async {
-                            final uri = Uri.parse('https://t.me/jahongir_444');
+                            final uri = Uri.parse('https://t.me/Parvizgaybullayev');
                             final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
                             if (!opened && context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +118,7 @@ new_tg = """InkWell(
                           child: const Padding(
                             padding: EdgeInsets.symmetric(vertical: 6),
                             child: Text(
-                              '@jahongir_444',
+                              '@Parvizgaybullayev',
                               style: TextStyle(
                                 color: AppColors.green,
                                 fontWeight: FontWeight.w900,
@@ -148,8 +148,8 @@ checks = {
     'removed popular-products heading': 'Eng ko‘p qidirilgan mahsulotlar' not in s,
     'removed all-products link': "tr('Barchasi', 'Все')" not in s,
     'Telegram import': "package:url_launcher/url_launcher.dart" in s,
-    'Telegram link': "https://t.me/jahongir_444" in s,
-    'Telegram username': "@jahongir_444" in s,
+    'Telegram link': "https://t.me/Parvizgaybullayev" in s,
+    'Telegram username': "@Parvizgaybullayev" in s,
     'language persistence': "prefs.setBool('ui_is_uzbek', v)" in s,
     'theme persistence': "prefs.setBool('ui_dark_mode', v)" in s,
     'startup restore': "prefs.getBool('ui_is_uzbek')" in s and "prefs.getBool('ui_dark_mode')" in s,
