@@ -1341,7 +1341,7 @@ class _HomeEmptyProducts extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 34),
       decoration: BoxDecoration(
-        color: const Color(0xFF071A24),
+        color: surfaceColor(context),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFF00D7C2).withOpacity(.22)),
       ),
@@ -1400,19 +1400,20 @@ class _HomeProductCard extends StatelessWidget {
           minHeight: 118,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xFF06212A), Color(0xFF081A25)],
-            ),
+            color: surfaceColor(context),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: const Color(0xFF00CFC1).withOpacity(.24),
+              color: isDark(context)
+                  ? const Color(0xFF00CFC1).withOpacity(.24)
+                  : const Color(0xFF009E96).withOpacity(.18),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00CFC1).withOpacity(.04),
+                color: isDark(context)
+                    ? const Color(0xFF00CFC1).withOpacity(.04)
+                    : Colors.black.withOpacity(.06),
                 blurRadius: 18,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -1571,14 +1572,14 @@ class _PixBottomMenu extends StatelessWidget {
       height: 104,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF071A24),
+        color: surfaceColor(context),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: const Color(0xFF00D7C2).withOpacity(.24),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.28),
+            color: Colors.black.withOpacity(isDark(context) ? .28 : .10),
             blurRadius: 25,
             offset: const Offset(0, 10),
           ),
@@ -3470,7 +3471,7 @@ class _CatalogPageState extends State<CatalogPage> {
                       )
                     : null,
                 filled: true,
-                fillColor: const Color(0xFF071A24),
+                fillColor: surfaceColor(context),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(18),
                   borderSide: BorderSide(
@@ -3658,7 +3659,7 @@ class _CatalogTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF071A24),
+            color: surfaceColor(context),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: const Color(0xFF00D7C2).withOpacity(.20),
@@ -3918,7 +3919,7 @@ class _CatalogInfoRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF071A24),
+        color: surfaceColor(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: accent.withOpacity(.14)),
       ),
@@ -4096,7 +4097,7 @@ class _CatalogEditPageState extends State<CatalogEditPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF071A24),
+                  color: surfaceColor(context),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: const Color(0xFF00D7C2).withOpacity(.28),
