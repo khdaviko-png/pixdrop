@@ -2,15 +2,6 @@ name: Build PixDrop Fixed2 APK
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - main.dart
-      - pubspec.yaml
-      - assets/**
-      - tools/patch_app.py
-      - .github/workflows/build-apk-fixed2.yml
 
 jobs:
   build:
