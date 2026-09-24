@@ -32,7 +32,11 @@ except Exception as e:
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(APP_DIR, 'store.db')
 UPLOAD_FOLDER = os.path.join(APP_DIR, 'uploads')
-ADMIN_PHONE = '+998995442358'
+PRIMARY_ADMIN_PHONE = '+998995442358'
+ADMIN_PHONES = {
+    PRIMARY_ADMIN_PHONE,
+    '+998943219444',
+}
 TOKEN_DAYS = 90
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -192,7 +196,10 @@ def init_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop ON products(shop_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_code ON products(shop_id, code)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_catalog_name ON catalog_products(name)')
-    conn.execute('UPDATE users SET is_admin=1 WHERE phone=?', (ADMIN_PHONE,))
+    conn.executemany(
+        'UPDATE users SET is_admin=1, is_blocked=0 WHERE phone=?',
+        [(phone,) for phone in ADMIN_PHONES],
+    )
     conn.commit()
     conn.close()
 
@@ -241,7 +248,7 @@ def subscription_state(conn, phone):
     if not row:
         return {'status': 'error', 'message': 'Foydalanuvchi topilmadi.'}, 404
 
-    if row['is_admin'] or phone == ADMIN_PHONE:
+    if row['is_admin'] or phone in ADMIN_PHONES:
         return {'status': 'active', 'days_left': 9999, 'warning': None}, 200
 
     if row['is_blocked']:
@@ -313,7 +320,7 @@ def auth_required(admin=False):
                 return jsonify(status='error', message='Sessiya tugagan.'), 401
 
             subscription, code = subscription_state(conn, row['phone'])
-            is_admin = bool(row['is_admin'] or row['phone'] == ADMIN_PHONE)
+            is_admin = bool(row['is_admin'] or row['phone'] in ADMIN_PHONES)
 
             if code != 200 and not is_admin:
                 conn.close()
@@ -455,7 +462,7 @@ def register():
         conn.close()
         return jsonify(status='error', message='Bu telefon raqami avval ro\'yxatdan o\'tgan.'), 400
 
-    is_admin = 1 if phone == ADMIN_PHONE else 0
+    is_admin = 1 if phone in ADMIN_PHONES else 0
     is_blocked = 0
     free_days = 3650 if is_admin else 30
     sub_end = (datetime.now() + timedelta(days=free_days)).strftime('%Y-%m-%d %H:%M:%S')
@@ -507,7 +514,7 @@ def login():
         )
 
     subscription, status_code = subscription_state(conn, phone)
-    is_admin = bool(user['is_admin'] or phone == ADMIN_PHONE)
+    is_admin = bool(user['is_admin'] or phone in ADMIN_PHONES)
 
     if status_code != 200 and not is_admin:
         conn.commit()
@@ -548,7 +555,7 @@ def auth_check():
             'phone': user['phone'],
             'name': user['name'],
             'district': user['district'],
-            'is_admin': bool(user['is_admin'] or user['phone'] == ADMIN_PHONE),
+            'is_admin': bool(user['is_admin'] or user['phone'] in ADMIN_PHONES),
         },
         subscription=request.subscription,
     )
@@ -1093,7 +1100,7 @@ def web_admin_required(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
         phone = session.get('admin_phone', '')
-        if phone != ADMIN_PHONE:
+        if phone not in ADMIN_PHONES:
             return redirect(url_for('admin_login'))
         return fn(*args, **kwargs)
     return wrapped
@@ -1109,7 +1116,7 @@ def admin_login():
         user = conn.execute('SELECT * FROM users WHERE phone=?', (phone,)).fetchone()
         conn.close()
 
-        if not user or not (user['is_admin'] or phone == ADMIN_PHONE):
+        if not user or not (user['is_admin'] or phone in ADMIN_PHONES):
             error = 'Admin topilmadi.'
         elif not verify_password(user['password_hash'], password):
             error = 'Parol noto‘g‘ri.'
@@ -1141,7 +1148,7 @@ def admin_login():
   <label>Parol</label><input name="password" type="password" required autofocus>
   <button type="submit">KIRISH</button>
 </form></body></html>
-    ''', error=error, admin_phone=ADMIN_PHONE)
+    ''', error=error, admin_phone=PRIMARY_ADMIN_PHONE)
 
 
 @app.get('/admin/logout')
@@ -1164,7 +1171,7 @@ def admin_web_toggle():
         conn.execute('UPDATE users SET is_blocked=0, sub_end_date=? WHERE phone=?', (end, phone))
         conn.commit()
         session['admin_notice'] = f'{phone}: 30 kunlik obuna yoqildi.'
-    elif action == 'disable' and phone != ADMIN_PHONE:
+    elif action == 'disable' and phone not in ADMIN_PHONES:
         conn.execute('UPDATE users SET is_blocked=1 WHERE phone=?', (phone,))
         conn.commit()
         session['admin_notice'] = f'{phone}: bloklandi.'
