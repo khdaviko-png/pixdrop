@@ -24,12 +24,15 @@ Map<String, String> userData = {
 
 // Dizayn bosqichida admin telefon orqali ajratiladi.
 // Keyin bu tekshiruv server tomonidan majburiy tasdiqlanadi.
-const String adminPhone = '+998995442358';
+const Set<String> adminPhones = {
+  '+998995442358',
+  '+998943219444',
+};
 const String _catalogStorageKey = 'pixdrop_catalog_local_v1';
 const String _searchStatsStorageKey = 'pixdrop_search_stats_v1';
 
 bool get isCurrentUserAdmin =>
-    (userData['phone'] ?? '').trim() == adminPhone;
+    adminPhones.contains((userData['phone'] ?? '').trim());
 
 Future<void> rememberProductSearch(Map data) async {
   final code = (data['code'] ?? '').toString().trim();
