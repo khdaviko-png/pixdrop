@@ -7,7 +7,16 @@ import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template_string,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 from waitress import serve
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -30,6 +39,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 30 * 1024 * 1024
+app.secret_key = os.environ.get('PIXDrop_SECRET_KEY') or secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
 
 
 def now_str():
@@ -442,10 +456,9 @@ def register():
         return jsonify(status='error', message='Bu telefon raqami avval ro\'yxatdan o\'tgan.'), 400
 
     is_admin = 1 if phone == ADMIN_PHONE else 0
-    is_blocked = 0 if is_admin else 1
-    sub_end = None
-    if is_admin:
-        sub_end = (datetime.now() + timedelta(days=3650)).strftime('%Y-%m-%d %H:%M:%S')
+    is_blocked = 0
+    free_days = 3650 if is_admin else 30
+    sub_end = (datetime.now() + timedelta(days=free_days)).strftime('%Y-%m-%d %H:%M:%S')
 
     conn.execute('''
         INSERT INTO users(
@@ -461,7 +474,7 @@ def register():
 
     return jsonify(
         status='success',
-        message='Ro\'yxatdan o\'tdingiz. Admin obunani yoqishini kuting!'
+        message='Ro\'yxatdan o\'tdingiz. 30 kunlik bepul foydalanish yoqildi!'
     )
 
 
@@ -1076,21 +1089,134 @@ def users_stat():
     return jsonify(stats=stats, users=users)
 
 
+def web_admin_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        phone = session.get('admin_phone', '')
+        if phone != ADMIN_PHONE:
+            return redirect(url_for('admin_login'))
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    error = ''
+    if request.method == 'POST':
+        phone = request.form.get('phone', '').strip()
+        password = request.form.get('password', '')
+        conn = get_db()
+        user = conn.execute('SELECT * FROM users WHERE phone=?', (phone,)).fetchone()
+        conn.close()
+
+        if not user or not (user['is_admin'] or phone == ADMIN_PHONE):
+            error = 'Admin topilmadi.'
+        elif not verify_password(user['password_hash'], password):
+            error = 'Parol noto‘g‘ri.'
+        else:
+            session.clear()
+            session['admin_phone'] = phone
+            return redirect(url_for('admin_page'))
+
+    return render_template_string('''
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PixDrop Admin</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;display:grid;place-items:center;background:#030b12;color:#eef7fa;font-family:Arial,sans-serif;padding:20px}
+    .box{width:min(430px,100%);background:#071a24;border:1px solid #0c766f;border-radius:26px;padding:30px;box-shadow:0 24px 70px #0009}
+    h1{margin:0 0 8px;font-size:30px}.brand{color:#19d7c2}.muted{color:#91a4ae;margin:0 0 24px}.err{background:#5d1d2a;color:#ffd7df;padding:12px;border-radius:12px;margin-bottom:15px}
+    label{display:block;margin:14px 0 7px;color:#b8c8cf}input{width:100%;padding:15px;border-radius:14px;border:1px solid #24424d;background:#06141d;color:#fff;font-size:16px}
+    button{width:100%;margin-top:22px;padding:15px;border:0;border-radius:14px;background:linear-gradient(90deg,#26d9ef,#35eb91);font-size:17px;font-weight:800;color:#031119;cursor:pointer}
+  </style>
+</head>
+<body><form class="box" method="post">
+  <h1><span class="brand">Pix</span>Drop Admin</h1>
+  <p class="muted">Admin telefon va paroli bilan kiring</p>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <label>Telefon raqam</label><input name="phone" value="{{ admin_phone }}" required>
+  <label>Parol</label><input name="password" type="password" required autofocus>
+  <button type="submit">KIRISH</button>
+</form></body></html>
+    ''', error=error, admin_phone=ADMIN_PHONE)
+
+
+@app.get('/admin/logout')
+def admin_logout():
+    session.clear()
+    return redirect(url_for('admin_login'))
+
+
+@app.post('/admin/web/toggle')
+@web_admin_required
+def admin_web_toggle():
+    phone = request.form.get('user_phone', '').strip()
+    action = request.form.get('action', '').strip()
+    conn = get_db()
+    user = conn.execute('SELECT 1 FROM users WHERE phone=?', (phone,)).fetchone()
+    if not user:
+        session['admin_notice'] = 'Foydalanuvchi topilmadi.'
+    elif action == 'enable':
+        end = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute('UPDATE users SET is_blocked=0, sub_end_date=? WHERE phone=?', (end, phone))
+        conn.commit()
+        session['admin_notice'] = f'{phone}: 30 kunlik obuna yoqildi.'
+    elif action == 'disable' and phone != ADMIN_PHONE:
+        conn.execute('UPDATE users SET is_blocked=1 WHERE phone=?', (phone,))
+        conn.commit()
+        session['admin_notice'] = f'{phone}: bloklandi.'
+    else:
+        session['admin_notice'] = 'Amal bajarilmadi.'
+    conn.close()
+    return redirect(url_for('admin_page'))
+
+
 @app.get('/admin')
-@auth_required(admin=True)
+@web_admin_required
 def admin_page():
-    return '''
-    <!doctype html>
-    <html>
-      <head><meta charset="utf-8"><title>PixDrop Admin</title></head>
-      <body style="font-family:Arial;background:#071a24;color:#fff;padding:30px">
-        <h1>PixDrop Admin API</h1>
-        <p>Server ishlayapti.</p>
-        <p>Foydalanuvchilar: <code>/admin/users_stat</code></p>
-        <p>Obuna boshqaruvi: <code>/admin/toggle_subscription</code></p>
-      </body>
-    </html>
-    '''
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT phone,name,district,is_blocked,sub_end_date,last_active,is_admin
+        FROM users ORDER BY is_admin DESC, last_active DESC, name
+    ''').fetchall()
+    conn.close()
+    users = [dict(row) for row in rows]
+    notice = session.pop('admin_notice', '')
+    stats = {
+        'total': len(users),
+        'active': sum(1 for user in users if not user['is_blocked']),
+        'blocked': sum(1 for user in users if user['is_blocked']),
+    }
+    return render_template_string('''
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PixDrop boshqaruvi</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#030b12;color:#edf7fa;font-family:Arial,sans-serif;padding:22px}.wrap{max-width:1150px;margin:auto}
+    header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}h1{margin:0}.brand{color:#19d7c2}.logout{color:#7de4d9;text-decoration:none}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}.stat{background:#071a24;border:1px solid #173844;border-radius:18px;padding:18px}.stat b{display:block;font-size:28px;color:#23ddc7}.stat span{color:#8fa5af}
+    .notice{background:#0c493f;border:1px solid #18aa94;padding:13px 16px;border-radius:14px;margin-bottom:16px}.table{overflow:auto;background:#071a24;border:1px solid #173844;border-radius:20px}table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;padding:14px;border-bottom:1px solid #15313b}th{color:#7edfd5;font-size:13px}td{color:#dce9ed}.active{color:#43e39f}.blocked{color:#ff758c}
+    form{display:inline}button{border:0;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}.enable{background:#34dda0;color:#032118}.disable{background:#ff667f;color:#28030a}.admin{color:#ffd166}
+    @media(max-width:650px){body{padding:12px}.stats{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body><div class="wrap">
+  <header><div><h1><span class="brand">Pix</span>Drop boshqaruvi</h1><div style="color:#8fa5af;margin-top:5px">Yangi foydalanuvchiga avtomatik 30 kun bepul</div></div><a class="logout" href="{{ url_for('admin_logout') }}">Chiqish</a></header>
+  <div class="stats"><div class="stat"><b>{{ stats.total }}</b><span>Jami foydalanuvchi</span></div><div class="stat"><b>{{ stats.active }}</b><span>Faol</span></div><div class="stat"><b>{{ stats.blocked }}</b><span>Bloklangan</span></div></div>
+  {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+  <div class="table"><table><thead><tr><th>Ism</th><th>Telefon</th><th>Hudud</th><th>Holat</th><th>Obuna tugashi</th><th>Oxirgi faollik</th><th>Amal</th></tr></thead><tbody>
+  {% for user in users %}<tr><td>{{ user.name or '—' }}{% if user.is_admin %} <span class="admin">ADMIN</span>{% endif %}</td><td>{{ user.phone }}</td><td>{{ user.district or '—' }}</td><td class="{{ 'blocked' if user.is_blocked else 'active' }}">{{ 'Bloklangan' if user.is_blocked else 'Faol' }}</td><td>{{ user.sub_end_date or '—' }}</td><td>{{ user.last_active or '—' }}</td><td>
+    {% if not user.is_admin %}<form method="post" action="{{ url_for('admin_web_toggle') }}"><input type="hidden" name="user_phone" value="{{ user.phone }}"><input type="hidden" name="action" value="{{ 'enable' if user.is_blocked else 'disable' }}"><button class="{{ 'enable' if user.is_blocked else 'disable' }}">{{ '30 kun yoqish' if user.is_blocked else 'Bloklash' }}</button></form>{% endif %}
+  </td></tr>{% else %}<tr><td colspan="7">Foydalanuvchi yo‘q.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div></body></html>
+    ''', users=users, stats=stats, notice=notice)
 
 
 if __name__ == '__main__':
